@@ -11,6 +11,8 @@ from hashlib import sha256
 
 import GET_SERIAL_pb2
 import GET_SERIAL_pb2_grpc
+import POST_PIN_pb2
+import POST_PIN_pb2_grpc
 
 
 # function that sends a request to grpc server to get map
@@ -54,6 +56,16 @@ def get_serial_no():
         # send request
         response = stub.GetSerial(GET_SERIAL_pb2.PlaceHolder(place_holder=None))
         return response.serial_no
+
+
+# function to send pin to server and wait for acknowledgement
+def send_pin(pin):
+    # establish channel and stub
+    with grpc.insecure_channel('localhost:50051') as channel:
+        stub = POST_PIN_pb2_grpc.PINStub(channel)
+        # send request
+        response = stub.SendPin(POST_PIN_pb2.Pin(pin=str(pin)))
+        return response.ack
 
 
 def disarm_mine(serial_no):
@@ -147,6 +159,7 @@ def rover_execute_command(path_i, rover_moves, row, col, rover_num):
                     pin = disarm_mine(serial_no)
 
                     # then share the pin to server
+                    print(send_pin(pin))
 
         x = rover_pos['x']
         y = rover_pos['y']

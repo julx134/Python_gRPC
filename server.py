@@ -10,6 +10,8 @@ import uuid
 
 import GET_SERIAL_pb2
 import GET_SERIAL_pb2_grpc
+import POST_PIN_pb2
+import POST_PIN_pb2_grpc
 
 # global url variable for API endpoint
 urlBase = "https://coe892.reev.dev/lab1/rover/"
@@ -64,12 +66,21 @@ class RoverCommands(GET_COMMANDS_pb2_grpc.RoverCommandsServicer):
 class SerialMine(GET_SERIAL_pb2_grpc.SerialServicer):
     print('Received send serial number request')
 
-    # override GetRoverMoves proto method
+    # override GetSerial proto method
     def GetSerial(self, request, context):
         # generate random id based on rover name and num move
         serial_no = uuid.uuid4().hex
         print(f'Generated serial {serial_no}')
         return GET_SERIAL_pb2.SerialNumber(serial_no=str(serial_no))
+
+
+class ReceivePin(POST_PIN_pb2_grpc.PINServicer):
+    # override SendPin proto method
+    def SendPin(self, request, context):
+        # generate random id based on rover name and num move
+        print(f'Received pin: {request.pin}')
+        ack = f'Server acknowledges pin: {request.pin}'
+        return POST_PIN_pb2.Acknowledgement(ack=ack)
 
 
 def start_server():
@@ -78,6 +89,7 @@ def start_server():
     GET_MAP_pb2_grpc.add_MapServicer_to_server(Map(), server)
     GET_COMMANDS_pb2_grpc.add_RoverCommandsServicer_to_server(RoverCommands(), server)
     GET_SERIAL_pb2_grpc.add_SerialServicer_to_server(SerialMine(), server)
+    POST_PIN_pb2_grpc.add_PINServicer_to_server(ReceivePin(), server)
     server.start()
     print('Started Server...')
     server.wait_for_termination()
