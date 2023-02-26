@@ -1,12 +1,12 @@
 import sys
-
+import copy
 import grpc
-
 import GET_COMMANDS_pb2
 import GET_COMMANDS_pb2_grpc
 import GET_MAP_pb2
 import GET_MAP_pb2_grpc
 import ast
+import os
 
 
 # function that sends a request to grpc server to get map
@@ -31,10 +31,96 @@ def get_rover_moves(rover_num):
         return response.commands
 
 
+# function to write path file of rover
+def write_path_file(i, path):
+    absolute_path = os.path.dirname(__file__)
+    rover_folder_path = 'rover_paths'
+    rover_dir = os.path.join(absolute_path, rover_folder_path)
+
+    with open (os.path.join(rover_dir, "path_{}.txt".format(i)), 'w+') as txt_file:
+        for line in path:
+            txt_file.write(" ".join(line)+'\n')
+
+
+# run rover commands
+def rover_execute_command(path_i, rover_moves, row, col):
+
+    # copy map to list -- this is so we don't have to write to map.txt directly
+    rover_map = copy.deepcopy(path_i)
+
+    # initialize path map for rover
+    path = [['0' for x in range(col)] for j in range(row)]
+
+    # dictionary to track rover position
+    rover_pos = {'x': 0, 'y': 0, 'dir': 'S'}
+
+    i = 0
+    outer_x_bounds = row - 1
+    outer_y_bounds = col - 1
+    x = rover_pos['x']
+    y = rover_pos['y']
+    path[x][y] = '*'
+
+    # for loop and match-case statements that handle rover movement
+    for move in rover_moves:
+
+        # rover dies immediately if it steps on a mine and does not immediately dig
+        if int(rover_map[x][y]) > 0 and move != 'D':
+            return write_path_file(rover_num, path)
+
+        match move:
+            case 'M':  # move forward
+                match rover_pos['dir']:
+                    case 'S':
+                        if rover_pos['x'] + 1 <= outer_x_bounds:
+                            rover_pos['x'] += 1
+                    case 'N':
+                        if rover_pos['x'] - 1 >= 0:
+                            rover_pos['x'] -= 1
+                    case 'W':
+                        if rover_pos['y'] - 1 >= 0:
+                            rover_pos['y'] -= 1
+                    case 'E':
+                        if rover_pos['y'] + 1 <= outer_y_bounds:
+                            rover_pos['y'] += 1
+            case 'L':  # turn left
+                match rover_pos['dir']:
+                    case 'S':
+                        rover_pos['dir'] = 'E'
+                    case 'N':
+                        rover_pos['dir'] = 'W'
+                    case 'W':
+                        rover_pos['dir'] = 'S'
+                    case 'E':
+                        rover_pos['dir'] = 'N'
+            case 'R':  # turn right
+                match rover_pos['dir']:
+                    case 'S':
+                        rover_pos['dir'] = 'W'
+                    case 'N':
+                        rover_pos['dir'] = 'E'
+                    case 'W':
+                        rover_pos['dir'] = 'N'
+                    case 'E':
+                        rover_pos['dir'] = 'S'
+            case 'D':
+                # if rover digs a mine, remove from map
+                if int(rover_map[x][y]) > 0:
+                    rover_map[x][y] = '0'
+
+        x = rover_pos['x']
+        y = rover_pos['y']
+        path[x][y] = '*'
+        i += 1
+
+    # write path to file and send signal to server that rover has completed moves successfully
+    write_path_file(rover_num, path)
+
+
+
 if __name__ == '__main__':
     rover_num = sys.argv[1]
-    print(rover_num)
     row, col, map_list = get_map()
     rover_moves = get_rover_moves(rover_num)
+    rover_execute_command(map_list, rover_moves, row, col)
 
-    print(rover_moves)
