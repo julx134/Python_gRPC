@@ -7,6 +7,10 @@ import GET_MAP_pb2
 import GET_MAP_pb2_grpc
 import ast
 import os
+from hashlib import sha256
+
+import GET_SERIAL_pb2
+import GET_SERIAL_pb2_grpc
 
 
 # function that sends a request to grpc server to get map
@@ -42,8 +46,35 @@ def write_path_file(i, path):
             txt_file.write(" ".join(line)+'\n')
 
 
+# function to send request to server to get serial num
+def get_serial_no():
+    # establish channel and stub
+    with grpc.insecure_channel('localhost:50051') as channel:
+        stub = GET_SERIAL_pb2_grpc.SerialStub(channel)
+        # send request
+        response = stub.GetSerial(GET_SERIAL_pb2.PlaceHolder(place_holder=None))
+        return response.serial_no
+
+
+def disarm_mine(serial_no):
+    print(f'Received serial number from server: {serial_no}')
+
+    # note: we increment pin instead of using random to make sure results are reproducible
+    # i.e. same time pin is found vs. random time generating random pins
+    pin = 0
+    success_code = '0' * 4
+    mine_key = str(pin) + serial_no
+    print('Starting to disarm...')
+    while not (hash_ := sha256(f'{mine_key}'.encode()).hexdigest()).startswith(success_code):
+        pin += 1
+        mine_key = str(pin) + serial_no
+
+    print(f'Found pin: {pin}; Temporary mine key: {hash_}')
+    return pin
+
+
 # run rover commands
-def rover_execute_command(path_i, rover_moves, row, col):
+def rover_execute_command(path_i, rover_moves, row, col, rover_num):
 
     # copy map to list -- this is so we don't have to write to map.txt directly
     rover_map = copy.deepcopy(path_i)
@@ -65,6 +96,7 @@ def rover_execute_command(path_i, rover_moves, row, col):
     for move in rover_moves:
 
         # rover dies immediately if it steps on a mine and does not immediately dig
+        # send notification to server
         if int(rover_map[x][y]) > 0 and move != 'D':
             return write_path_file(rover_num, path)
 
@@ -108,6 +140,14 @@ def rover_execute_command(path_i, rover_moves, row, col):
                 if int(rover_map[x][y]) > 0:
                     rover_map[x][y] = '0'
 
+                    # get serial mine number from server then disarm mine
+                    serial_no = get_serial_no()
+
+                    # disarm mine
+                    pin = disarm_mine(serial_no)
+
+                    # then share the pin to server
+
         x = rover_pos['x']
         y = rover_pos['y']
         path[x][y] = '*'
@@ -122,5 +162,5 @@ if __name__ == '__main__':
     rover_num = sys.argv[1]
     row, col, map_list = get_map()
     rover_moves = get_rover_moves(rover_num)
-    rover_execute_command(map_list, rover_moves, row, col)
+    rover_execute_command(map_list, rover_moves, row, col, rover_num)
 
