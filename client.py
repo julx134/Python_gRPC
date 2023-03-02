@@ -13,6 +13,8 @@ import GET_SERIAL_pb2
 import GET_SERIAL_pb2_grpc
 import POST_PIN_pb2
 import POST_PIN_pb2_grpc
+import POST_STATUS_pb2
+import POST_STATUS_pb2_grpc
 
 
 # function that sends a request to grpc server to get map
@@ -68,6 +70,16 @@ def send_pin(pin):
         return response.ack
 
 
+# function to send rover status to server
+def send_rover_status(message, status):
+    # establish channel and stub
+    with grpc.insecure_channel('localhost:50051') as channel:
+        stub = POST_STATUS_pb2_grpc.RoverStatusStub(channel)
+        # send status
+        response = stub.SendStatus(POST_STATUS_pb2.MessageStatus(message=str(message), status=int(status)))
+        return response.ack
+
+
 def disarm_mine(serial_no):
     print(f'Received serial number from server: {serial_no}')
 
@@ -110,6 +122,9 @@ def rover_execute_command(path_i, rover_moves, row, col, rover_num):
         # rover dies immediately if it steps on a mine and does not immediately dig
         # send notification to server
         if int(rover_map[x][y]) > 0 and move != 'D':
+            message = f'Rover {rover_num} stepped on a mine and died'
+            ack = send_rover_status(message, 0)
+            print(ack)
             return write_path_file(rover_num, path)
 
         match move:
@@ -169,6 +184,11 @@ def rover_execute_command(path_i, rover_moves, row, col, rover_num):
     # write path to file and send signal to server that rover has completed moves successfully
     write_path_file(rover_num, path)
 
+    # if successful, send status to server
+    message = f'Rover {rover_num} returned home a hero!'
+    ack = send_rover_status(message, int(1))
+    print(ack)
+    return
 
 
 if __name__ == '__main__':

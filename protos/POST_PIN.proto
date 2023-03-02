@@ -5,12 +5,12 @@ service PIN {
   rpc SendPin (Pin) returns (Acknowledgement) {}
 }
 
-//define map request message
+//define pin request message
 message Pin {
   string pin = 1;
 }
 
-//response message containing the map features
+//acknowledgement response message
 message Acknowledgement {
   string ack = 1;
 }
